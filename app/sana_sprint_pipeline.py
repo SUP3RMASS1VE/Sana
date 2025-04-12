@@ -18,6 +18,9 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
+import logging
+import platform
+import sys
 
 import pyrallis
 import torch
@@ -33,7 +36,44 @@ from diffusion.data.datasets.utils import ASPECT_RATIO_512_TEST, ASPECT_RATIO_10
 from diffusion.model.builder import build_model, get_tokenizer_and_text_encoder, get_vae, vae_decode
 from diffusion.model.utils import get_weight_dtype, prepare_prompt_ar, resize_and_crop_tensor
 from diffusion.utils.config import SanaConfig, model_init_config
-from diffusion.utils.logger import get_root_logger
+try:
+    from diffusion.utils.logger import get_root_logger
+except Exception:
+    # Create a fallback logger function for Windows
+    def get_root_logger():
+        logger = logging.getLogger("sana_sprint")
+        logger.setLevel(logging.INFO)
+        
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        logger.addHandler(console_handler)
+        
+        # Try to add file handler if possible
+        try:
+            log_dir = "logs"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            
+            # Platform-specific log file 
+            log_file = os.path.join(log_dir, "sana_sprint.log")
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.INFO)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+            print(f"Logging to: {log_file}")
+        except Exception as e:
+            print(f"Could not create log file: {e}")
+            
+        return logger
+
 from tools.download import find_model
 
 
@@ -61,10 +101,6 @@ class SanaSprintInference(SanaConfig):
     intermediate_timesteps: Optional[float] = 1.3
     timesteps: Optional[List[float]] = None
     custom_image_size: Optional[int] = None
-    shield_model_path: str = field(
-        default="google/shieldgemma-2b",
-        metadata={"help": "The path to shield model, we employ ShieldGemma-2B by default."},
-    )
 
 
 class SanaSprintPipeline(nn.Module):
@@ -82,7 +118,39 @@ class SanaSprintPipeline(nn.Module):
         self.image_size = self.config.model.image_size
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        logger = get_root_logger()
+        try:
+            logger = get_root_logger()
+        except Exception as e:
+            print(f"Error getting root logger: {e}")
+            # Create a custom logger
+            logger = logging.getLogger("sana_sprint")
+            logger.setLevel(logging.INFO)
+            
+            # Add console handler if not already added
+            if not logger.handlers:
+                console_handler = logging.StreamHandler()
+                console_handler.setLevel(logging.INFO)
+                formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                console_handler.setFormatter(formatter)
+                logger.addHandler(console_handler)
+                
+                # Add file handler using platform-specific paths
+                try:
+                    log_dir = "logs"
+                    if not os.path.exists(log_dir):
+                        os.makedirs(log_dir)
+                    
+                    # Platform-specific log file
+                    log_file = os.path.join(log_dir, "sana_sprint.log")
+                    file_handler = logging.FileHandler(log_file)
+                    file_handler.setLevel(logging.INFO)
+                    file_handler.setFormatter(formatter)
+                    logger.addHandler(file_handler)
+                    
+                    print(f"Logging to: {log_file}")
+                except Exception as e:
+                    print(f"Could not create log file: {e}")
+        
         self.logger = logger
         self.progress_fn = lambda progress, desc: None
 
@@ -134,14 +202,35 @@ class SanaSprintPipeline(nn.Module):
     def from_pretrained(self, model_path):
         state_dict = find_model(model_path)
         state_dict = state_dict.get("state_dict", state_dict)
+        
+        # Remove pos_embed key which is expected to be missing
         if "pos_embed" in state_dict:
             del state_dict["pos_embed"]
+            
+        # Load without strict mode to handle missing/unexpected keys
         missing, unexpected = self.model.load_state_dict(state_dict, strict=False)
         self.model.eval().to(self.weight_dtype)
-
+        
+        # Expected keys to be missing/unexpected in Sana Sprint models
+        expected_missing = ["pos_embed"]
+        expected_unexpected = ["logvar_linear.weight", "logvar_linear.bias"]
+        
+        # Filter out expected keys from warnings
+        actual_missing = [key for key in missing if key not in expected_missing]
+        actual_unexpected = [key for key in unexpected if key not in expected_unexpected]
+        
         self.logger.info("Generating sample from ckpt: %s" % model_path)
-        self.logger.warning(f"Missing keys: {missing}")
-        self.logger.warning(f"Unexpected keys: {unexpected}")
+        
+        # Only log as warning if there are non-expected missing/unexpected keys
+        if actual_missing:
+            self.logger.warning(f"Missing keys: {actual_missing}")
+        else:
+            self.logger.info(f"Expected missing keys: {missing}")
+            
+        if actual_unexpected:
+            self.logger.warning(f"Unexpected keys: {actual_unexpected}")
+        else:
+            self.logger.info(f"Expected unexpected keys: {unexpected}")
 
     def register_progress_bar(self, progress_fn=None):
         self.progress_fn = progress_fn if progress_fn is not None else self.progress_fn
