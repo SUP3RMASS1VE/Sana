@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import os
 import argparse
 import torch
@@ -262,99 +261,206 @@ def main():
         return images[0], generation_info
     
     # Create the Gradio interface
-    with gr.Blocks(title="Sana Sprint Text-to-Image Generator") as demo:
-        gr.Markdown("# Sana Sprint Text-to-Image Generator")
-        gr.Markdown("Generate high-quality images with Sana Sprint in just a few steps!")
+    with gr.Blocks(title="Sana Sprint Text-to-Image Generator", css="""
+        :root {
+            --primary-color: #7B68EE;
+            --secondary-color: #9370DB;
+            --accent-color: #9370DB;
+            --neutral-color: #E0E0E0;
+            --gradient-from: #7B68EE;
+            --gradient-to: #9370DB;
+            --dark-color: #282856;
+            --text-color: #282856;
+        }
+        
+        body {
+            background-image: linear-gradient(to right, var(--gradient-from), var(--gradient-to));
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .gr-panel {
+            border-radius: 16px !important;
+            border: none !important;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        .gr-button-primary {
+            background: linear-gradient(to right, var(--gradient-from), var(--gradient-to)) !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(123, 104, 238, 0.5) !important;
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+            color: white !important;
+            font-weight: bold !important;
+            min-height: 45px !important;
+        }
+        
+        .gr-button-primary:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 16px rgba(123, 104, 238, 0.7) !important;
+        }
+        
+        .gr-input, .gr-panel {
+            border-radius: 8px !important;
+        }
+        
+        .gr-slider {
+            color: var(--primary-color) !important;
+        }
+        
+        h1 {
+            font-size: 2.5em !important;
+            font-weight: 700 !important;
+            color: white !important;
+            text-align: center !important;
+            margin-bottom: 0.5em !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+        }
+        
+        h2 {
+            font-size: 1.5em !important;
+            color: var(--text-color) !important;
+            font-weight: 600 !important;
+        }
+        
+        .image-container img {
+            border-radius: 16px !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
+        }
+    """) as demo:
+        with gr.Row():
+            gr.HTML("""
+                <div style="text-align: center; margin-bottom: 10px">
+                    <h1>Sana Sprint Text-to-Image Generator</h1>
+                    <p style="color: white; font-size: 1.2em; margin-top: -10px;">Create stunning images in just a few steps</p>
+                </div>
+            """)
         
         with gr.Row():
             with gr.Column(scale=1):
-                prompt = gr.Textbox(
-                    label="Prompt",
-                    placeholder="Enter your prompt here...",
-                    lines=3,
-                )
-                style = gr.Dropdown(
-                    label="Style",
-                    choices=STYLE_NAMES,
-                    value=DEFAULT_STYLE_NAME,
-                )
-                
-                with gr.Accordion("Advanced Settings", open=False):
-                    seed = gr.Slider(
-                        label="Seed",
-                        minimum=0,
-                        maximum=MAX_SEED,
-                        step=1,
-                        value=0,
+                with gr.Group():
+                    prompt = gr.Textbox(
+                        label="Your Prompt",
+                        placeholder="Describe the image you want to create...",
+                        lines=3,
                     )
-                    randomize_seed_option = gr.Checkbox(
-                        label="Randomize seed",
-                        value=True,
+                    style = gr.Dropdown(
+                        label="Style Preset",
+                        choices=STYLE_NAMES,
+                        value=DEFAULT_STYLE_NAME,
                     )
                     
                     with gr.Row():
-                        height = gr.Slider(
-                            label="Height",
-                            minimum=512,
-                            maximum=2048,
-                            step=64,
-                            value=1024,
-                        )
-                        width = gr.Slider(
-                            label="Width",
-                            minimum=512,
-                            maximum=2048,
-                            step=64,
-                            value=1024,
-                        )
-                    
-                    guidance_scale = gr.Slider(
-                        label="Guidance Scale",
-                        minimum=1.0,
-                        maximum=15.0,
-                        step=0.1,
-                        value=4.5,
-                    )
-                    
-                    num_inference_steps = gr.Slider(
-                        label="Steps",
-                        minimum=1,
-                        maximum=4,
-                        step=1,
-                        value=1,
-                    )
-                    
-                    use_resolution_binning = gr.Checkbox(
-                        label="Use resolution binning",
-                        value=True,
-                    )
-                    
-                    with gr.Accordion("Expert Settings", open=False):
-                        max_timesteps = gr.Slider(
-                            label="Max Timesteps",
-                            minimum=1.0,
-                            maximum=2.0,
-                            step=0.01,
-                            value=1.56830,
-                        )
-                        intermediate_timesteps = gr.Slider(
-                            label="Intermediate Timesteps",
-                            minimum=1.0,
-                            maximum=1.5,
-                            step=0.01,
-                            value=1.3,
-                        )
-                        timesteps = gr.Textbox(
-                            label="Custom Timesteps (comma-separated)",
-                            placeholder="e.g. 1.5, 1.0, 0.5",
-                            value="",
-                        )
+                        generate_btn = gr.Button("Generate Image", variant="primary")
                 
-                generate_btn = gr.Button("Generate", variant="primary")
+                with gr.Accordion("Advanced Settings", open=False):
+                    with gr.Group():
+                        with gr.Row():
+                            seed = gr.Slider(
+                                label="Seed",
+                                minimum=0,
+                                maximum=MAX_SEED,
+                                step=1,
+                                value=0,
+                            )
+                            randomize_seed_option = gr.Checkbox(
+                                label="Randomize seed",
+                                value=False,
+                            )
+                        
+                        with gr.Row():
+                            height = gr.Slider(
+                                label="Height",
+                                minimum=512,
+                                maximum=2048,
+                                step=64,
+                                value=1024,
+                            )
+                            width = gr.Slider(
+                                label="Width",
+                                minimum=512,
+                                maximum=2048,
+                                step=64,
+                                value=1024,
+                            )
+                        
+                        with gr.Row():
+                            guidance_scale = gr.Slider(
+                                label="Guidance Scale",
+                                minimum=1.0,
+                                maximum=15.0,
+                                step=0.1,
+                                value=4.5,
+                            )
+                            num_inference_steps = gr.Slider(
+                                label="Steps",
+                                minimum=1,
+                                maximum=4,
+                                step=1,
+                                value=1,
+                            )
+                        
+                        use_resolution_binning = gr.Checkbox(
+                            label="Use resolution binning",
+                            value=True,
+                        )
+                        
+                        with gr.Accordion("Expert Settings", open=False):
+                            max_timesteps = gr.Slider(
+                                label="Max Timesteps",
+                                minimum=1.0,
+                                maximum=2.0,
+                                step=0.01,
+                                value=1.56830,
+                            )
+                            intermediate_timesteps = gr.Slider(
+                                label="Intermediate Timesteps",
+                                minimum=1.0,
+                                maximum=1.5,
+                                step=0.01,
+                                value=1.3,
+                            )
+                            timesteps = gr.Textbox(
+                                label="Custom Timesteps (comma-separated)",
+                                placeholder="e.g. 1.5, 1.0, 0.5",
+                                value="",
+                            )
             
             with gr.Column(scale=1):
-                output_image = gr.Image(label="Generated Image", type="pil")
-                generation_info = gr.Textbox(label="Generation Info", interactive=False)
+                with gr.Group(elem_classes="image-container"):
+                    output_image = gr.Image(
+                        label="Generated Image", 
+                        type="pil", 
+                        height=512,
+                        format="png",
+                        show_download_button=True,
+                        elem_id="output_image"
+                    )
+                    generation_info = gr.Textbox(label="Generation Info", interactive=False)
+        
+        # Examples section with a more attractive layout
+        with gr.Row():
+            gr.HTML("<h2 style='margin-top: 20px; text-align: center; color: white;'>Example Prompts</h2>")
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Examples(
+                    examples=[
+                        ["A serene landscape with mountains and a lake at sunset", "Photographic", 42],
+                        ["A colorful bird perched on a branch", "Digital Art", 123],
+                        ["A futuristic cityscape with flying cars", "Neonpunk", 456],
+                        ["A cute cat wearing a hat", "Anime", 789],
+                    ],
+                    inputs=[prompt, style, seed],
+                    label="Try these examples",
+                )
         
         # Set up event handlers
         generate_btn.click(
@@ -365,17 +471,6 @@ def main():
                 timesteps, randomize_seed_option, use_resolution_binning,
             ],
             outputs=[output_image, generation_info],
-        )
-        
-        # Examples
-        gr.Examples(
-            examples=[
-                ["A serene landscape with mountains and a lake at sunset", "Photographic", 42],
-                ["A colorful bird perched on a branch", "Digital Art", 123],
-                ["A futuristic cityscape with flying cars", "Neonpunk", 456],
-                ["A cute cat wearing a hat", "Anime", 789],
-            ],
-            inputs=[prompt, style, seed],
         )
     
     # Launch the Gradio app
