@@ -379,14 +379,14 @@ def main():
                             height = gr.Slider(
                                 label="Height",
                                 minimum=512,
-                                maximum=2048,
+                                maximum=4096,
                                 step=64,
                                 value=1024,
                             )
                             width = gr.Slider(
                                 label="Width",
                                 minimum=512,
-                                maximum=2048,
+                                maximum=4096,
                                 step=64,
                                 value=1024,
                             )
